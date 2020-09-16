@@ -57,6 +57,8 @@ static ngx_int_t ngx_http_variable_binary_remote_addr(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_variable_remote_addr(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
+static ngx_int_t ngx_http_variable_remote_addr_anon(ngx_http_request_t *r,
+    ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_variable_remote_port(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_variable_proxy_protocol_addr(ngx_http_request_t *r,
@@ -197,6 +199,8 @@ static ngx_http_variable_t  ngx_http_core_variables[] = {
       ngx_http_variable_binary_remote_addr, 0, 0, 0 },
 
     { ngx_string("remote_addr"), NULL, ngx_http_variable_remote_addr, 0, 0, 0 },
+
+    { ngx_string("remote_addr_anon"), NULL, ngx_http_variable_remote_addr_anon, 0, 0, 0 },
 
     { ngx_string("remote_port"), NULL, ngx_http_variable_remote_port, 0, 0, 0 },
 
@@ -1273,6 +1277,86 @@ ngx_http_variable_remote_addr(ngx_http_request_t *r,
     v->no_cacheable = 0;
     v->not_found = 0;
     v->data = r->connection->addr_text.data;
+
+    return NGX_OK;
+}
+
+
+static ngx_int_t
+ngx_http_variable_remote_addr_anon(ngx_http_request_t *r,
+    ngx_http_variable_value_t *v, uintptr_t data)
+{
+
+    size_t                     len;
+    u_char               *p;
+    ngx_uint_t   i;
+
+    struct sockaddr_in   *sin;
+#if (NGX_HAVE_INET6)
+    struct sockaddr_in6  *sin6;
+#endif
+
+    switch (r->connection->sockaddr->sa_family) {
+
+#if (NGX_HAVE_INET6)
+    case AF_INET6:
+        sin6 = (struct sockaddr_in6 *) r->connection->sockaddr;
+
+        len = NGX_UNIX_ADDRSTRLEN;
+        p = (u_char *) &sin6->sin6_addr;
+
+        v->len = 0;
+        v->valid = 1;
+        v->no_cacheable = 0;
+        v->not_found = 0;
+
+        v->data = ngx_pnalloc(r->pool, len);
+        if (v->data == NULL) {
+            return NGX_ERROR;
+        }
+
+        for (i=6; i<16; i++) {
+          p[i] = 0;
+        }
+
+        v->len = ngx_inet6_ntop(p, v->data, len);
+
+        break;
+#endif
+
+#if (NGX_HAVE_UNIX_DOMAIN)
+    case AF_UNIX:
+
+        v->len = r->connection->addr_text.len;
+        v->valid = 1;
+        v->no_cacheable = 0;
+        v->not_found = 0;
+        v->data = r->connection->addr_text.data;
+
+        break;
+#endif
+
+    default: /* AF_INET */
+        sin = (struct sockaddr_in *) r->connection->sockaddr;
+
+        len = NGX_UNIX_ADDRSTRLEN;
+        p = (u_char *) &sin->sin_addr;
+
+        v->len = 0;
+        v->valid = 1;
+        v->no_cacheable = 0;
+        v->not_found = 0;
+
+        v->data = ngx_pnalloc(r->pool, len);
+        if (v->data == NULL) {
+            return NGX_ERROR;
+        }
+
+        v->len = ngx_sprintf(v->data, "%ud.%ud.%ud.0",
+            p[0], p[1], p[2]) - v->data;
+
+        break;
+    }
 
     return NGX_OK;
 }
