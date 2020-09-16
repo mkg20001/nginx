@@ -225,7 +225,7 @@ static ngx_str_t  ngx_http_access_log = ngx_string(NGX_HTTP_LOG_PATH);
 
 
 static ngx_str_t  ngx_http_combined_fmt =
-    ngx_string("$remote_addr - $remote_user [$time_local] "
+    ngx_string("$remote_addr_anon - $remote_user [$time_local] "
                "\"$request\" $status $body_bytes_sent "
                "\"$http_referer\" \"$http_user_agent\"");
 
